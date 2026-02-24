@@ -9,9 +9,18 @@
     <script src="https://js.stripe.com/v3/"></script>
     <style>
         body { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-        .product-card { transition: transform 0.2s; }
-        .product-card:active { transform: scale(0.98); }
-        @media print {
+.product-card {
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+    will-change: transform;
+}
+
+.product-card:hover {
+    transform: scale(1.05);
+}
+
+.product-card:active {
+    transform: scale(1.03);
+}        @media print {
             body * { visibility: hidden; }
             #vista-ticket, #vista-ticket * { visibility: visible; }
             #vista-ticket { position: absolute; left: 0; top: 0; width: 100%; background: white; }
