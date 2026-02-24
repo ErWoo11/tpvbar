@@ -125,19 +125,24 @@
     </div>
 
     <!-- Modal de Pago -->
-    <div id="modal-pago" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50 p-4">
-        <div class="bg-white rounded-lg p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto animate-fade-in">
-            <h2 class="text-2xl font-bold mb-4 text-gray-800">💳 Opciones de Pago</h2>
-            
-            <!-- Resumen del pedido -->
-            <div class="bg-gray-50 p-4 rounded-lg mb-4">
-                <h3 class="font-bold text-sm mb-2 text-gray-700">📋 Tu pedido:</h3>
-                <ul id="lista-resumen" class="text-sm text-gray-600 max-h-32 overflow-y-auto space-y-1"></ul>
-                <div class="flex justify-between font-bold text-lg mt-3 pt-3 border-t border-gray-300">
-                    <span>Total:</span>
-                    <span id="modal-total-pago" class="text-indigo-600">0.00€</span>
-                </div>
+<div id="modal-pago" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-lg p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto animate-fade-in">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-2xl font-bold text-gray-800">💳 Opciones de Pago</h2>
+            <!-- ✅ NUEVO: Botón Vaciar Carrito en modal de pago -->
+            <button onclick="vaciarCarritoDesdePago()" class="text-red-500 hover:text-red-700 text-sm font-medium flex items-center gap-1 px-3 py-1 rounded hover:bg-red-50 transition">
+                🗑️ Vaciar
+            </button>
+        </div>
+        
+        <div class="bg-gray-50 p-4 rounded-lg mb-4">
+            <h3 class="font-bold text-sm mb-2 text-gray-700">📋 Tu pedido:</h3>
+            <ul id="lista-resumen" class="text-sm text-gray-600 max-h-32 overflow-y-auto space-y-1"></ul>
+            <div class="flex justify-between font-bold text-lg mt-3 pt-3 border-t border-gray-300">
+                <span>Total:</span>
+                <span id="modal-total-pago" class="text-indigo-600">0.00€</span>
             </div>
+        </div>
 
             <!-- OPCIÓN 1: Pagar Online con Tarjeta -->
             <div class="mb-4">
@@ -538,6 +543,21 @@ document.getElementById('modal-total').innerHTML = `
         // ============================================
         // 💳 MODAL DE PAGO
         // ============================================
+
+// ✅ Nueva función para vaciar desde el modal de pago
+window.vaciarCarritoDesdePago = () => {
+    if (carrito.length === 0) {
+        alert("🛒 El carrito ya está vacío");
+        return;
+    }
+    if (confirm("¿Estás seguro de que quieres vaciar todo el carrito?")) {
+        carrito = [];
+        actualizarTotales();
+        cerrarModalPago();
+        renderizarProductos();
+        alert("🗑️ Carrito vaciado");
+    }
+};
 
         async function inicializarStripe(total) {
             try {
