@@ -8,6 +8,16 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://js.stripe.com/v3/"></script>
     <style>
+
+:root {
+    --primary: #4f46e5;
+    --primary-dark: #4338ca;
+    --gray-200: #e5e7eb;
+    --gray-300: #d1d5db;
+    --gray-700: #374151;
+    --danger: #ef4444;
+}
+
         body { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .product-card {
     transition: transform 0.25s ease, box-shadow 0.25s ease;
@@ -44,6 +54,96 @@
     .producto-img-cuadrada {
         height: 150px;          /* Desktop: 150px */
     }
+}
+
+/* Animación al añadir producto */
+@keyframes addToCart {
+    0% { transform: scale(1); }
+    50% { transform: scale(0.95); }
+    100% { transform: scale(1); }
+}
+
+@keyframes cartBump {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.3); }
+    100% { transform: scale(1); }
+}
+
+.product-card.adding {
+    animation: addToCart 0.3s ease;
+}
+
+.cart-bump {
+    animation: cartBump 0.3s ease;
+}
+
+/* Contador de cantidad en producto */
+.product-quantity {
+    display: none;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.product-quantity.active {
+    display: flex;
+}
+
+.qty-btn {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 50%;
+    font-size: 1.25rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.qty-btn.minus {
+    background: var(--gray-200);
+    color: var(--gray-700);
+}
+
+.qty-btn.minus:hover {
+    background: var(--gray-300);
+}
+
+.qty-btn.plus {
+    background: var(--primary);
+    color: white;
+}
+
+.qty-btn.plus:hover {
+    background: var(--primary-dark);
+}
+
+.qty-value {
+    font-size: 1.125rem;
+    font-weight: 700;
+    min-width: 32px;
+    text-align: center;
+}
+
+/* Badge de cantidad en carrito */
+.cart-badge {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: var(--danger);
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 700;
+    min-width: 20px;
+    height: 20px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 6px;
 }
 
     </style>
@@ -394,41 +494,82 @@
             for (var i = 0; i < productosFiltrados.length; i++) {
                 var prod = productosFiltrados[i];
                 // ✅ IMAGEN EN CUADRADO CON object-fit: contain
-                contenedor.innerHTML += 
-                    '<div class="product-card bg-white rounded-2xl shadow-md overflow-hidden flex flex-col hover:shadow-lg transition">' +
-                        '<div class="bg-gray-50 flex items-center justify-center">' +
-                            '<img src="' + (prod.imagen || 'https://via.placeholder.com/150?text=Producto') + '" ' +
-                                 'class="producto-img-cuadrada" alt="' + prod.nombre + '" ' +
-                                 'onerror="this.src=\'https://via.placeholder.com/150?text=Sin+Imagen\'">' +
-                        '</div>' +
-                        '<div class="p-3 flex-1 flex flex-col justify-between">' +
-                            '<div><h3 class="font-semibold text-gray-800 text-sm md:text-base leading-tight">' + prod.nombre + '</h3><p class="text-xs text-gray-500 mt-1">' + (prod.categoria || 'General') + '</p><p class="text-indigo-600 font-bold text-sm md:text-base mt-1">' + parseFloat(prod.precio).toFixed(2) + '€</p></div>' +
-                            '<button onclick="agregarAlCarrito(\'' + prod.id + '\')" class="mt-2 w-full bg-indigo-100 text-indigo-700 py-2 rounded-lg font-bold text-sm active:bg-indigo-200 transition">+ Añadir</button>' +
-                        '</div>' +
-                    '</div>';
+// Verificar si el producto ya está en el carrito
+var enCarrito = carrito.find(function(item) { return item.id === prod.id; });
+var cantidadEnCarrito = enCarrito ? enCarrito.cantidad : 0;
+
+contenedor.innerHTML += `
+    <div class="product-card bg-white rounded-xl shadow overflow-hidden flex flex-col" id="product-${prod.id}">
+        <img src="${prod.imagen || 'https://via.placeholder.com/150?text=Producto'}" 
+             class="producto-img-cuadrada" 
+             alt="${prod.nombre}"
+             onerror="this.src='https://via.placeholder.com/150?text=Sin+Imagen'">
+        <div class="p-3 flex-1 flex flex-col justify-between">
+            <div>
+                <h3 class="font-bold text-gray-800 text-sm line-clamp-2">${prod.nombre}</h3>
+                <p class="text-xs text-gray-500 mt-1">${prod.categoria || 'General'}</p>
+                <p class="text-indigo-600 font-bold mt-1">${parseFloat(prod.precio).toFixed(2)}€</p>
+            </div>
+            <div class="mt-2">
+                <button onclick="window.agregarAlCarrito('${prod.id}')" 
+                        class="w-full bg-indigo-100 text-indigo-700 py-2 rounded-lg font-bold text-sm active:bg-indigo-200 transition btn-add-cart"
+                        id="btn-add-${prod.id}">
+                    + Añadir al Carrito
+                </button>
+                <div class="product-quantity ${cantidadEnCarrito > 0 ? 'active' : ''}" id="qty-container-${prod.id}">
+                    <button onclick="window.restarCantidad('${prod.id}')" class="qty-btn minus">−</button>
+                    <span class="qty-value" id="qty-value-${prod.id}">${cantidadEnCarrito}</span>
+                    <button onclick="window.sumarCantidad('${prod.id}')" class="qty-btn plus">+</button>
+                </div>
+            </div>
+    </div>
+    </div>
+    `;
             }
         }
-
-
         cargarProductos();
 
         // ============================================
         // 🛒 FUNCIONES DEL CARRITO (EDITABLE)
         // ============================================
 
-        window.agregarAlCarrito = (id) => {
-            const prod = productosDB.find(p => p.id === id);
-            if(prod) {
-                const existe = carrito.find(item => item.id === id);
-                if (existe) {
-                    existe.cantidad++;
-                } else {
-                    carrito.push({ ...prod, cantidad: 1 });
-                }
-                actualizarTotales();
-                navigator.vibrate?.(50);
-            }
-        };
+window.agregarAlCarrito = function(id) {
+    var prod = productosDB.find(function(p) { return p.id === id; });
+    if (!prod) return;
+    
+    var existe = carrito.find(function(item) { return item.id === id; });
+    if (existe) {
+        existe.cantidad = (existe.cantidad || 1) + 1;
+    } else {
+        carrito.push({ 
+            id: prod.id,
+            nombre: prod.nombre, 
+            precio: prod.precio, 
+            imagen: prod.imagen,
+            categoria: prod.categoria,
+            cantidad: 1 
+        });
+    }
+    
+    // Animación en la tarjeta del producto
+    var productCard = document.getElementById('product-' + id);
+    if (productCard) {
+        productCard.classList.add('adding');
+        setTimeout(function() { productCard.classList.remove('adding'); }, 300);
+    }
+    
+    // Animación en el botón del carrito
+    var carritoBtn = document.querySelector('button[onclick="abrirModalPago()"]');
+    if (carritoBtn) {
+        carritoBtn.classList.add('cart-bump');
+        setTimeout(function() { carritoBtn.classList.remove('cart-bump'); }, 300);
+    }
+    
+    actualizarTotales();
+    actualizarControlesProducto(id);
+    
+    if (navigator.vibrate) navigator.vibrate(50);
+};
 
         window.restarDelCarrito = (id) => {
             const index = carrito.findIndex(item => item.id === id);
@@ -450,17 +591,99 @@
         };
 
 function actualizarTotales() {
-    // 🔹 SOLO subtotal (sin IVA)
-    const subtotal = carrito.reduce((sum, item) => 
-        sum + (parseFloat(item.precio) * item.cantidad), 0);
-
-    const cantidad = carrito.reduce((sum, item) => 
-        sum + item.cantidad, 0);
-
-    // 👇 Mostrar SOLO subtotal abajo
-    document.getElementById('total-display').innerText = subtotal.toFixed(2) + '€';
+    var total = carrito.reduce(function(sum, item) { 
+        return sum + (parseFloat(item.precio) * (item.cantidad || 1)); 
+    }, 0);
+    
+    var cantidad = carrito.reduce(function(sum, item) { 
+        return sum + (item.cantidad || 1); 
+    }, 0);
+    
+    document.getElementById('total-display').innerText = total.toFixed(2) + '€';
     document.getElementById('contador-carrito').innerText = cantidad;
+    
+    // Actualizar todos los controles de producto
+    for (var i = 0; i < productosDB.length; i++) {
+        actualizarControlesProducto(productosDB[i].id);
+    }
 }
+
+// Función para mostrar/actualizar controles de cantidad en producto
+function actualizarControlesProducto(productId) {
+    var itemEnCarrito = carrito.find(function(item) { return item.id === productId; });
+    var cantidad = itemEnCarrito ? itemEnCarrito.cantidad : 0;
+    
+    var btnAdd = document.getElementById('btn-add-' + productId);
+    var qtyContainer = document.getElementById('qty-container-' + productId);
+    var qtyValue = document.getElementById('qty-value-' + productId);
+    
+    if (cantidad > 0) {
+        if (btnAdd) btnAdd.style.display = 'none';
+        if (qtyContainer) qtyContainer.classList.add('active');
+        if (qtyValue) qtyValue.innerText = cantidad;
+    } else {
+        if (btnAdd) btnAdd.style.display = 'block';
+        if (qtyContainer) qtyContainer.classList.remove('active');
+    }
+}
+
+// Sumar cantidad desde el producto
+window.sumarCantidad = function(productId) {
+    var prod = productosDB.find(function(p) { return p.id === productId; });
+    if (!prod) return;
+    
+    var itemEnCarrito = carrito.find(function(item) { return item.id === productId; });
+    
+    if (itemEnCarrito) {
+        itemEnCarrito.cantidad++;
+    } else {
+        carrito.push({ 
+            id: prod.id,
+            nombre: prod.nombre, 
+            precio: prod.precio, 
+            imagen: prod.imagen,
+            categoria: prod.categoria,
+            cantidad: 1 
+        });
+    }
+    
+    // Animación
+    var productCard = document.getElementById('product-' + productId);
+    if (productCard) {
+        productCard.classList.add('adding');
+        setTimeout(function() { productCard.classList.remove('adding'); }, 300);
+    }
+    
+    // Animación del carrito
+    var carritoBtn = document.querySelector('button[onclick="abrirModalPago()"]');
+    if (carritoBtn) {
+        carritoBtn.classList.add('cart-bump');
+        setTimeout(function() { carritoBtn.classList.remove('cart-bump'); }, 300);
+    }
+    
+    actualizarTotales();
+    actualizarControlesProducto(productId);
+    
+    if (navigator.vibrate) navigator.vibrate(50);
+};
+
+// Restar cantidad desde el producto
+window.restarCantidad = function(productId) {
+    var index = carrito.findIndex(function(item) { return item.id === productId; });
+    if (index === -1) return;
+    
+    if (carrito[index].cantidad > 1) {
+        carrito[index].cantidad--;
+    } else {
+        carrito.splice(index, 1);
+    }
+    
+    actualizarTotales();
+    actualizarControlesProducto(productId);
+    renderizarCarrito();
+    
+    if (navigator.vibrate) navigator.vibrate(30);
+};
 
         function renderizarCarrito() {
             const lista = document.getElementById('lista-carrito');
@@ -471,27 +694,26 @@ function actualizarTotales() {
                 return;
             }
 
-            carrito.forEach((item, index) => {
-                lista.innerHTML += `
-                    <div class="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
-                        <div class="flex-1">
-                            <p class="font-bold text-gray-800">${item.nombre}</p>
-                            <p class="text-sm text-gray-500">${parseFloat(item.precio).toFixed(2)}€ / ud</p>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <button onclick="window.restarDelCarrito('${item.id}')" 
-                                    class="w-8 h-8 bg-gray-200 rounded-full font-bold text-gray-700 hover:bg-gray-300 transition">−</button>
-                            <span class="w-8 text-center font-bold">${item.cantidad}</span>
-                            <button onclick="window.agregarAlCarrito('${item.id}')" 
-                                    class="w-8 h-8 bg-indigo-100 rounded-full font-bold text-indigo-700 hover:bg-indigo-200 transition">+</button>
-                            <button onclick="window.eliminarDelCarrito('${item.id}')" 
-                                    class="ml-2 text-red-500 hover:bg-red-100 p-2 rounded transition" title="Eliminar">
-                                    🗑️
-                            </button>
-                        </div>
-                    </div>
-                `;
-            });
+carrito.forEach(function(item) {
+    var cantidad = item.cantidad || 1;
+    lista.innerHTML += `
+        <div class="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
+            <div class="flex-1">
+                <p class="font-bold text-gray-800">${item.nombre}</p>
+                <p class="text-sm text-gray-500">${parseFloat(item.precio).toFixed(2)}€ / ud</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="window.restarDelCarrito('${item.id}')" 
+                        class="w-8 h-8 bg-gray-200 rounded-full font-bold text-gray-700 hover:bg-gray-300 transition">−</button>
+                <span class="w-8 text-center font-bold">${cantidad}</span>
+                <button onclick="window.agregarAlCarrito('${item.id}')" 
+                        class="w-8 h-8 bg-indigo-100 rounded-full font-bold text-indigo-700 hover:bg-indigo-200 transition">+</button>
+                <button onclick="window.eliminarDelCarrito('${item.id}')" 
+                        class="ml-2 text-red-500 hover:bg-red-100 p-2 rounded transition" title="Eliminar">🗑️</button>
+            </div>
+        </div>
+    `;
+});
 
 const total = carrito.reduce((sum, item) => 
     sum + (parseFloat(item.precio) * item.cantidad), 0);
@@ -507,21 +729,6 @@ document.getElementById('modal-total').innerHTML = `
     </div>
     <div class="text-sm text-gray-600 flex justify-between">
         <span>IVA incluido (10%):</span>
-        <span>${iva.toFixed(2)}€</span>
-    </div>
-    <div class="flex justify-between font-bold text-lg text-indigo-600 mt-2 border-t pt-2">
-        <span>Total:</span>
-        <span>${total.toFixed(2)}€</span>
-    </div>
-`;
-
-document.getElementById('modal-total').innerHTML = `
-    <div class="text-sm text-gray-600 flex justify-between">
-        <span>Subtotal:</span>
-        <span>${subtotal.toFixed(2)}€</span>
-    </div>
-    <div class="text-sm text-gray-600 flex justify-between">
-        <span>IVA (10%):</span>
         <span>${iva.toFixed(2)}€</span>
     </div>
     <div class="flex justify-between font-bold text-lg text-indigo-600 mt-2 border-t pt-2">
