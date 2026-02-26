@@ -6,6 +6,7 @@
     <meta name="theme-color" content="#1f2937">
     <title>Panel Camarero - Gestión Avanzada</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         body { touch-action: manipulation; }
         .pedido-card { transition: all 0.3s ease; }
@@ -389,7 +390,7 @@
             <h3 class="font-bold text-lg mb-4 text-gray-800">🖼️ Logo del Bar</h3>
             <div class="flex items-center gap-4">
                 <img id="preview-logo" src="https://via.placeholder.com/100?text=LOGO" class="w-20 h-20 rounded-full border-2 border-gray-300 object-cover">
-                <input type="text" id="config-logo" placeholder="https://ejemplo.com/logo.png" class="flex-1 border border-gray-300 rounded-lg p-3">
+                <input type="text" id="config-logo" placeholder="images/logobar.jpeg" class="flex-1 border border-gray-300 rounded-lg p-3">
             </div>
         </div>
 
@@ -415,6 +416,16 @@
 
         <!-- Botón Guardar Configuración -->
         <button onclick="guardarConfiguracion()" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-lg hover:bg-indigo-700 transition">💾 Guardar Configuración</button>
+
+<!-- Botón Exportar Excel -->
+<div class="bg-blue-50 p-4 rounded-lg border border-blue-200 mt-4">
+    <h3 class="font-bold text-blue-800 mb-2">📊 Exportar Datos</h3>
+    <p class="text-sm text-blue-600 mb-3">Descarga un informe de ventas con una hoja por cada día</p>
+    <button onclick="window.exportarExcel()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow flex items-center gap-2">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+        📥 Exportar Ventas a Excel
+    </button>
+</div>
 
         <!-- Zona de Peligro -->
         <div class="bg-red-50 border border-red-200 rounded-lg shadow p-6 mt-6">
@@ -1353,6 +1364,152 @@
         // 🚀 INICIALIZACIÓN
         // ============================================
         cargarConfiguracion();
+
+// --- FUNCIÓN EXPORTAR A EXCEL ---
+window.exportarExcel = async () => {
+    const btn = document.querySelector('button[onclick="window.exportarExcel()"]');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '⏳ Generando...';
+    btn.disabled = true;
+
+    try {
+        // 1. Obtener todos los pedidos de Firebase
+        const q = query(collection(db, "pedidos"), orderBy("fecha", "desc"));
+        const snapshot = await getDocs(q);
+        
+        if (snapshot.empty) {
+            alert("No hay pedidos para exportar");
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            return;
+        }
+
+        // 2. Agrupar pedidos por fecha
+        const pedidosPorDia = {};
+        
+        snapshot.forEach((docSnap) => {
+            const pedido = docSnap.data();
+            const fechaObj = pedido.fecha?.toDate() || new Date();
+            const fechaStr = fechaObj.toLocaleDateString('es-ES', { 
+                year: 'numeric', 
+                month: '2-digit', 
+                day: '2-digit' 
+            });
+            
+            if (!pedidosPorDia[fechaStr]) {
+                pedidosPorDia[fechaStr] = [];
+            }
+            
+            pedidosPorDia[fechaStr].push({
+                id: docSnap.id,
+                mesa: pedido.mesa,
+                productos: pedido.productos,
+                total: pedido.productos.reduce((sum, p) => sum + parseFloat(p.precio), 0),
+                estado: pedido.estado,
+                hora: fechaObj.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+                metodoPago: pedido.metodoPago || 'Efectivo'
+            });
+        });
+
+        // 3. Crear libro de Excel
+        const workbook = XLSX.utils.book_new();
+
+        // 4. Crear una hoja por cada día
+        for (const [fecha, pedidos] of Object.entries(pedidosPorDia)) {
+            // Datos de la hoja
+            const datosHoja = [
+                ['📊 REPORTE DE VENTAS - ' + fecha],
+                [''],
+                ['Hora', 'Mesa', 'Productos', 'Cantidad', 'Método Pago', 'Estado', 'Total (€)'],
+            ];
+
+            let totalDia = 0;
+
+            pedidos.forEach(pedido => {
+                // Agrupar productos por nombre
+                const conteoProductos = {};
+                pedido.productos.forEach(p => {
+                    conteoProductos[p.nombre] = (conteoProductos[p.nombre] || 0) + 1;
+                });
+
+                const productosStr = Object.keys(conteoProductos).join(', ');
+                const cantidadTotal = pedido.productos.length;
+                totalDia += pedido.total;
+
+                datosHoja.push([
+                    pedido.hora,
+                    `Mesa ${pedido.mesa}`,
+                    productosStr,
+                    cantidadTotal,
+                    pedido.metodoPago,
+                    pedido.estado,
+                    pedido.total.toFixed(2)
+                ]);
+            });
+
+            // Fila de total del día
+            datosHoja.push(['']);
+            datosHoja.push(['TOTAL DEL DÍA:', '', '', '', '', '', totalDia.toFixed(2) + ' €']);
+
+            // Crear hoja de trabajo
+            const worksheet = XLSX.utils.aoa_to_sheet(datosHoja);
+            
+            // Ajustar ancho de columnas
+            worksheet['!cols'] = [
+                { wch: 10 }, // Hora
+                { wch: 10 }, // Mesa
+                { wch: 40 }, // Productos
+                { wch: 10 }, // Cantidad
+                { wch: 15 }, // Método Pago
+                { wch: 12 }, // Estado
+                { wch: 15 }  // Total
+            ];
+
+            // Añadir hoja al libro (limpiar nombre para Excel: 12/01/2025 -> 12-01-2025)
+            const nombreHoja = fecha.replace(/\//g, '-').slice(0, 31);
+            XLSX.utils.book_append_sheet(workbook, worksheet, nombreHoja);
+        }
+
+        // 5. Hoja resumen con totales
+        const resumenDatos = [
+            ['📈 RESUMEN GENERAL DE VENTAS'],
+            [''],
+            ['Fecha', 'Total Pedidos', 'Total Ventas (€)'],
+        ];
+
+        let granTotal = 0;
+        for (const [fecha, pedidos] of Object.entries(pedidosPorDia)) {
+            const totalDia = pedidos.reduce((sum, p) => sum + p.total, 0);
+            granTotal += totalDia;
+            resumenDatos.push([
+                fecha,
+                pedidos.length,
+                totalDia.toFixed(2)
+            ]);
+        }
+
+        resumenDatos.push(['']);
+        resumenDatos.push(['GRAN TOTAL:', '', granTotal.toFixed(2) + ' €']);
+
+        const worksheetResumen = XLSX.utils.aoa_to_sheet(resumenDatos);
+        worksheetResumen['!cols'] = [{ wch: 15 }, { wch: 15 }, { wch: 20 }];
+        XLSX.utils.book_append_sheet(workbook, worksheetResumen, 'RESUMEN');
+
+        // 6. Descargar archivo
+        const nombreArchivo = `Ventas_Bar_${new Date().toISOString().slice(0,10)}.xlsx`;
+        XLSX.writeFile(workbook, nombreArchivo);
+
+        alert(`✅ Excel generado con éxito!\n\n📊 ${Object.keys(pedidosPorDia).length} días exportados\n💰 Total: ${granTotal.toFixed(2)}€`);
+
+    } catch (error) {
+        console.error("Error al exportar:", error);
+        alert("❌ Error al generar el Excel. Revisa la consola para más detalles.");
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+};
+
     </script>
 </body>
 </html>
